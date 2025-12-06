@@ -21,9 +21,18 @@ const app = express();
 // Middleware
 app.use(express.json());
 
-// CORS configuration - allow frontend origin and handle credentials
+// CORS configuration - allow frontend origin(s) and handle credentials
+// Accept frontend URL from env or fall back to common dev ports (5173 and 5174).
+const frontendDefault = process.env.FRONTEND_URL || 'http://localhost:5173';
+const allowedOrigins = [frontendDefault, 'http://localhost:5173', 'http://localhost:5174'];
+
 const corsOptions = {
-  origin: process.env.FRONTEND_URL || 'http://localhost:5173',
+  origin: (origin, callback) => {
+    // allow requests with no origin (like mobile apps or curl)
+    if (!origin) return callback(null, true);
+    if (allowedOrigins.includes(origin)) return callback(null, true);
+    return callback(new Error('Not allowed by CORS'));
+  },
   methods: ['GET', 'HEAD', 'PUT', 'PATCH', 'POST', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization'],
   credentials: true,
