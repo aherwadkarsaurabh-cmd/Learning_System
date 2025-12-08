@@ -22,16 +22,46 @@ const app = express();
 app.use(express.json());
 
 // CORS configuration - allow frontend origin(s) and handle credentials
-// Accept frontend URL from env or fall back to common dev ports (5173 and 5174).
-const frontendDefault = process.env.FRONTEND_URL || 'http://localhost:5173';
-const allowedOrigins = [frontendDefault, 'http://localhost:5173', 'http://localhost:5174'];
+// Read FRONTEND_URL (single URL) or FRONTEND_URLS (comma-separated) from env.
+const frontendFromEnv = process.env.FRONTEND_URL || process.env.FRONTEND_URLS || '';
+const frontendList = frontendFromEnv
+  .split(',')
+  .map((s) => s.trim())
+  .filter(Boolean);
+
+const frontendDefault = frontendList.length ? frontendList[0] : 'http://localhost:5173';
+const allowedOrigins = [
+  ...frontendList,
+  frontendDefault,
+  'http://localhost:5173',
+  'http://localhost:5174',
+];
+
+const allowAll = String(process.env.ALLOW_ALL_ORIGINS || '').toLowerCase() === 'true';
+
+if (allowAll) {
+  console.warn('⚠️  CORS is currently configured to allow all origins (ALLOW_ALL_ORIGINS=true).');
+}
+
+console.log('➡️  CORS allowed origins:', allowedOrigins);
+console.log('➡️  FRONTEND_URL(s) from env:', frontendFromEnv || '<none>');
+console.log('➡️  ALLOW_ALL_ORIGINS:', allowAll);
 
 const corsOptions = {
   origin: (origin, callback) => {
-    // allow requests with no origin (like mobile apps or curl)
+    // allow requests with no origin (like curl or server-to-server)
     if (!origin) return callback(null, true);
+
+    // If allowAll is enabled, accept any origin (useful for quick testing only)
+    if (allowAll) return callback(null, true);
+
+    // Accept exact matches from allowedOrigins
     if (allowedOrigins.includes(origin)) return callback(null, true);
-    return callback(new Error('Not allowed by CORS'));
+
+    // Not allowed — include the origin in the error message for diagnostics
+    const err = new Error(`Not allowed by CORS — origin: ${origin}`);
+    console.warn('⛔ CORS blocked request from origin:', origin);
+    return callback(err);
   },
   methods: ['GET', 'HEAD', 'PUT', 'PATCH', 'POST', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization'],
