@@ -18,11 +18,11 @@ import Registration from "./pages/Registration";
 import Subscription from "./pages/Subscription";
 import PaymentInterface from "./components/PaymentInterface";
 import ProtectedRoute from './components/ProtectedRoute';
-import AdminDashboard from './pages/admin/AdminDashboard';
-import AdminStudents from './pages/admin/AdminStudents';
-import AdminCourses from './pages/admin/AdminCourses';
-import AdminEnrollments from './pages/admin/AdminEnrollments';
-import AdminSettings from './pages/admin/AdminSettings';
+import AdminDashboard from './pages/Admin/AdminDashboard';
+import AdminStudents from './pages/Admin/AdminStudents';
+import AdminCourses from './pages/Admin/AdminCourses';
+import AdminEnrollments from './pages/Admin/AdminEnrollments';
+import AdminSettings from './pages/Admin/AdminSettings';
 // Instructor Pages
 import InstructorDashboard from './pages/Instructor/InstructorDashboard';
 import InstructorCourses from './pages/Instructor/InstructorCourses';
