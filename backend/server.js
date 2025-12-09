@@ -46,6 +46,9 @@ if (allowAll) {
 console.log('➡️  CORS allowed origins:', allowedOrigins);
 console.log('➡️  FRONTEND_URL(s) from env:', frontendFromEnv || '<none>');
 console.log('➡️  ALLOW_ALL_ORIGINS:', allowAll);
+// Optionally auto-allow Render app subdomains (e.g. https://*.onrender.com)
+const autoAllowOnrender = String(process.env.AUTO_ALLOW_ONRENDER || '').toLowerCase() === 'true';
+console.log('➡️  AUTO_ALLOW_ONRENDER:', autoAllowOnrender);
 
 const corsOptions = {
   origin: (origin, callback) => {
@@ -57,6 +60,16 @@ const corsOptions = {
 
     // Accept exact matches from allowedOrigins
     if (allowedOrigins.includes(origin)) return callback(null, true);
+
+    // If enabled, allow any onrender.com subdomain (useful for deployed frontend on Render)
+    if (autoAllowOnrender) {
+      try {
+        const parsed = new URL(origin);
+        if (parsed.hostname && parsed.hostname.endsWith('.onrender.com')) return callback(null, true);
+      } catch (e) {
+        // ignore parse errors and continue to reject below
+      }
+    }
 
     // Not allowed — include the origin in the error message for diagnostics
     const err = new Error(`Not allowed by CORS — origin: ${origin}`);
