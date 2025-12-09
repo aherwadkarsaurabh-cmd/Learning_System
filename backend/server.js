@@ -23,7 +23,13 @@ app.use(express.json());
 
 // CORS configuration - allow frontend origin(s) and handle credentials
 // Read FRONTEND_URL (single URL) or FRONTEND_URLS (comma-separated) from env.
-const frontendFromEnv = process.env.FRONTEND_URL || process.env.FRONTEND_URLS || '';
+// Also accept alternate env names that may be present in some deployments: CORS_ORIGIN, FRONTEND_PROD_ORIGIN
+const frontendFromEnv =
+  process.env.FRONTEND_URL ||
+  process.env.FRONTEND_URLS ||
+  process.env.CORS_ORIGIN ||
+  process.env.FRONTEND_PROD_ORIGIN ||
+  '';
 const frontendList = frontendFromEnv
   .split(',')
   .map((s) => s.trim())
@@ -44,7 +50,9 @@ if (allowAll) {
 }
 
 console.log('➡️  CORS allowed origins:', allowedOrigins);
-console.log('➡️  FRONTEND_URL(s) from env:', frontendFromEnv || '<none>');
+console.log('➡️  FRONTEND_URL(s) from env:', frontendFromEnv || '<https://learning-system-w9jw.onrender.com>');
+console.log('➡️  CORS_ORIGIN env var:', process.env.CORS_ORIGIN || '<https://learning-system-w9jw.onrender.com>');
+console.log('➡️  FRONTEND_PROD_ORIGIN env var:', process.env.FRONTEND_PROD_ORIGIN || '<https://learning-system-w9jw.onrender.com');
 console.log('➡️  ALLOW_ALL_ORIGINS:', allowAll);
 // Optionally auto-allow Render app subdomains (e.g. https://*.onrender.com)
 const autoAllowOnrender = String(process.env.AUTO_ALLOW_ONRENDER || '').toLowerCase() === 'true';
