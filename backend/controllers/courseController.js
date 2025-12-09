@@ -5,7 +5,7 @@ const { logActivity } = require('../utils/activityLogger');
 
 // @desc    Create new course
 // @route   POST /api/courses
-// @access  Private/Instructor
+// @access  Private/Admin/Instructor
 exports.createCourse = async (req, res) => {
     try {
         const {
@@ -14,23 +14,45 @@ exports.createCourse = async (req, res) => {
             price,
             duration,
             level,
-            category
+            category,
+            thumbnail
         } = req.body;
+
+        // Validate required fields
+        if (!title || !description || !category || !duration) {
+            return res.status(400).json({ 
+                message: 'Please provide title, description, category, and duration' 
+            });
+        }
+
+        // Set instructor to current user if not admin creating on behalf, or use provided instructor ID
+        const instructorId = req.body.instructor || req.user._id;
 
         const course = await Course.create({
             title,
             description,
-            instructor: req.user._id,
+            instructor: instructorId,
             institution: req.user.institution,
-            price,
+            price: price || 0,
             duration,
-            level,
-            category
+            level: level || 'Beginner',
+            category,
+            thumbnail: thumbnail || '',
+            isPublished: false
         });
 
-        res.status(201).json(course);
+        const populatedCourse = await course.populate('instructor', 'fullName email');
+
+        res.status(201).json({
+            success: true,
+            message: 'Course created successfully',
+            data: populatedCourse
+        });
     } catch (error) {
-        res.status(400).json({ message: error.message });
+        res.status(400).json({ 
+            success: false,
+            message: error.message 
+        });
     }
 };
 
@@ -91,59 +113,87 @@ exports.getCourseById = async (req, res) => {
 
 // @desc    Update course
 // @route   PUT /api/courses/:id
-// @access  Private/Instructor
+// @access  Private/Admin/Instructor
 exports.updateCourse = async (req, res) => {
     try {
         const course = await Course.findById(req.params.id);
 
-        if (course) {
-            // Verify instructor
-            if (course.instructor.toString() !== req.user._id.toString() && req.user.role !== 'admin') {
-                return res.status(401).json({ message: 'Not authorized to update this course' });
-            }
-
-            course.title = req.body.title || course.title;
-            course.description = req.body.description || course.description;
-            course.price = req.body.price || course.price;
-            course.duration = req.body.duration || course.duration;
-            course.level = req.body.level || course.level;
-            course.category = req.body.category || course.category;
-            course.thumbnail = req.body.thumbnail || course.thumbnail;
-            course.isPublished = req.body.isPublished ?? course.isPublished;
-
-            const updatedCourse = await course.save();
-            res.json(updatedCourse);
-        } else {
-            res.status(404).json({ message: 'Course not found' });
+        if (!course) {
+            return res.status(404).json({ 
+                success: false,
+                message: 'Course not found' 
+            });
         }
+
+        // Verify authorization - admin or course instructor
+        if (course.instructor.toString() !== req.user._id.toString() && req.user.role !== 'admin') {
+            return res.status(403).json({ 
+                success: false,
+                message: 'Not authorized to update this course' 
+            });
+        }
+
+        course.title = req.body.title || course.title;
+        course.description = req.body.description || course.description;
+        course.price = req.body.price !== undefined ? req.body.price : course.price;
+        course.duration = req.body.duration || course.duration;
+        course.level = req.body.level || course.level;
+        course.category = req.body.category || course.category;
+        course.thumbnail = req.body.thumbnail || course.thumbnail;
+        course.isPublished = req.body.isPublished !== undefined ? req.body.isPublished : course.isPublished;
+
+        const updatedCourse = await course.save();
+        const populatedCourse = await updatedCourse.populate('instructor', 'fullName email');
+        
+        res.json({
+            success: true,
+            message: 'Course updated successfully',
+            data: populatedCourse
+        });
     } catch (error) {
-        res.status(400).json({ message: error.message });
+        res.status(400).json({ 
+            success: false,
+            message: error.message 
+        });
     }
 };
 
 // @desc    Delete course
 // @route   DELETE /api/courses/:id
-// @access  Private/Instructor
+// @access  Private/Admin/Instructor
 exports.deleteCourse = async (req, res) => {
     try {
         const course = await Course.findById(req.params.id);
 
-        if (course) {
-            // Verify instructor
-            if (course.instructor.toString() !== req.user._id.toString() && req.user.role !== 'admin') {
-                return res.status(401).json({ message: 'Not authorized to delete this course' });
-            }
-
-            // Delete associated lessons
-            await Lesson.deleteMany({ course: course._id });
-
-            await course.remove();
-            res.json({ message: 'Course removed' });
-        } else {
-            res.status(404).json({ message: 'Course not found' });
+        if (!course) {
+            return res.status(404).json({ 
+                success: false,
+                message: 'Course not found' 
+            });
         }
+
+        // Verify authorization - admin or course instructor
+        if (course.instructor.toString() !== req.user._id.toString() && req.user.role !== 'admin') {
+            return res.status(403).json({ 
+                success: false,
+                message: 'Not authorized to delete this course' 
+            });
+        }
+
+        // Delete associated lessons
+        await Lesson.deleteMany({ course: course._id });
+
+        await Course.findByIdAndDelete(req.params.id);
+        
+        res.json({ 
+            success: true,
+            message: 'Course removed successfully' 
+        });
     } catch (error) {
-        res.status(400).json({ message: error.message });
+        res.status(400).json({ 
+            success: false,
+            message: error.message 
+        });
     }
 };
 

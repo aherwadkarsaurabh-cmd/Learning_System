@@ -378,7 +378,7 @@ function CourseCard({ course, onEnroll }) {
 }
 
 // CourseListing Component
-function CourseListing({ courses, onCourseSelect }) {
+function CourseListing({ courses, onCourseSelect, onEnroll }) {
   return (
     <div className="course-listing">
       <div className="course-listing-container">
@@ -387,7 +387,7 @@ function CourseListing({ courses, onCourseSelect }) {
             <CourseCard
               key={course._id || course.id}
               course={course}
-              onEnroll={onCourseSelect}
+              onEnroll={onEnroll || onCourseSelect}
             />
           ))}
         </div>
@@ -618,6 +618,7 @@ function CourseDetail({ course, onBack }) {
 function Subscription() {
   const [selectedCourse, setSelectedCourse] = useState(null);
   const [coursesList, setCoursesList] = useState(initialCourses);
+  const navigate = useNavigate();
 
   // Try to fetch real courses from backend and use their _id values
   useEffect(() => {
@@ -625,8 +626,14 @@ function Subscription() {
     (async () => {
       try {
         const res = await axios.get('/api/courses');
-        if (res && res.data && Array.isArray(res.data) && mounted) {
-          setCoursesList(res.data);
+        if (!res || !res.data) return;
+
+        // Backend may return either an array of courses or a pagination object { courses, page, ... }
+        const data = res.data;
+        const list = Array.isArray(data) ? data : (Array.isArray(data.courses) ? data.courses : null);
+
+        if (list && mounted) {
+          setCoursesList(list);
         }
       } catch (err) {
         // keep fallback initialCourses on error
@@ -638,6 +645,44 @@ function Subscription() {
 
   const handleCourseSelect = (course) => {
     setSelectedCourse(course);
+  };
+
+  const handleEnroll = async (course) => {
+    // prepare to create a pending enrollment and redirect to payment
+    const token = localStorage.getItem('token');
+    if (!token) {
+      alert('Please login first');
+      return;
+    }
+
+    try {
+      const courseIdToUse = course._id || course.id;
+      const res = await axios.post('/api/enrollments/create', { courseId: courseIdToUse }, { headers: { Authorization: `Bearer ${token}` } });
+      const enrollmentId = res?.data?.enrollmentId || res?.data?._id || res?.data?.id;
+
+      // store course information for payment page
+      try { localStorage.setItem('currentCourseId', courseIdToUse); } catch (e) {}
+      if (enrollmentId) {
+        try { localStorage.setItem('currentEnrollmentId', enrollmentId); } catch (e) {}
+      }
+      // save some course data so payment page can display title/price
+      try { localStorage.setItem('currentCourseData', JSON.stringify({ title: course.title, price: course.price || course.amount || null, id: courseIdToUse })); } catch (e) {}
+
+      navigate('/payment');
+    } catch (err) {
+      console.error('Failed to create enrollment:', err?.response?.data || err.message);
+      // backend might return an enrollmentId in an error (idempotent)
+      const enrollmentId = err?.response?.data?.enrollmentId;
+      if (enrollmentId) {
+        const courseIdToUse = course._id || course.id;
+        try { localStorage.setItem('currentCourseId', courseIdToUse); } catch (e) {}
+        try { localStorage.setItem('currentEnrollmentId', enrollmentId); } catch (e) {}
+        try { localStorage.setItem('currentCourseData', JSON.stringify({ title: course.title, price: course.price || null, id: courseIdToUse })); } catch (e) {}
+        navigate('/payment');
+        return;
+      }
+      alert('Failed to initiate enrollment. Please try again.');
+    }
   };
 
   const handleBack = () => {

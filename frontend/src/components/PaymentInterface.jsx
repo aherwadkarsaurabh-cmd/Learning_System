@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import axios from 'axios';
 import {
   CreditCard,
@@ -31,9 +31,57 @@ const PaymentInterface = () => {
     processing: false,
     showSuccess: false,
     confirmDetails: null,
+    // course info (populated from localStorage.currentCourseData or fetched)
+    courseTitle: null,
+    coursePrice: null,
+    courseLoading: false,
   });
 
   const navigate = useNavigate(); // <-- Added
+
+  // Load course data (title/price) from localStorage so payment UI shows correct amount
+  useEffect(() => {
+    const raw = localStorage.getItem('currentCourseData');
+    if (raw) {
+      try {
+        const parsed = JSON.parse(raw);
+        const title = parsed.title || null;
+        let price = parsed.price || null;
+        if (price !== null && price !== undefined) {
+          // normalize numeric price to formatted string if number
+          if (typeof price === 'number') price = `₹${price}`;
+          else if (typeof price === 'string' && !price.trim().startsWith('₹')) price = `₹${price}`;
+        }
+        setState(s => ({ ...s, courseTitle: title, coursePrice: price }));
+        return;
+      } catch (e) {
+        // ignore parse errors
+      }
+    }
+    // fallback: try to read courseId only (no price available) and fetch details
+    const cid = localStorage.getItem('currentCourseId');
+    if (cid) {
+      (async () => {
+        try {
+          setState(s => ({ ...s, courseLoading: true }));
+          const res = await axios.get(`/api/courses/${cid}`);
+          const data = res?.data?.course || res?.data || null;
+          if (data) {
+            let price = data.price ?? data.amount ?? null;
+            if (price !== null && price !== undefined) {
+              if (typeof price === 'number') price = `₹${price}`;
+              else if (typeof price === 'string' && !price.trim().startsWith('₹')) price = `₹${price}`;
+            }
+            setState(s => ({ ...s, courseTitle: data.title || s.courseTitle, coursePrice: price }));
+          }
+        } catch (e) {
+          console.warn('Could not fetch course details for payment page', e?.response?.data || e.message);
+        } finally {
+          setState(s => ({ ...s, courseLoading: false }));
+        }
+      })();
+    }
+  }, []);
 
   const formatCardNumber = (value) => {
     const v = value.replace(/\s+/g, "").replace(/[^0-9]/gi, "");
@@ -140,8 +188,9 @@ const PaymentInterface = () => {
       }
 
               // Start processing immediately (non-blocking overlay)
-              const details = { method: 'Card', amount: '₹519' };
-              processPaymentRequest({ method: 'Card', amount: '₹519', details });
+                  const amountToUse = state.coursePrice || '₹519';
+                    const details = { method: 'Card', amount: amountToUse };
+                    processPaymentRequest({ method: 'Card', amount: amountToUse, details });
       return;
     }
 
@@ -167,8 +216,9 @@ const PaymentInterface = () => {
       }
 
           // Start processing immediately (non-blocking overlay)
-          const details = { method: `UPI (${state.upiGateway})`, amount: '₹519', upi: state.upiId };
-          processPaymentRequest({ method: `UPI (${state.upiGateway})`, amount: '₹519', details });
+          const amountToUse = state.coursePrice || '₹519';
+          const details = { method: `UPI (${state.upiGateway})`, amount: amountToUse, upi: state.upiId };
+          processPaymentRequest({ method: `UPI (${state.upiGateway})`, amount: amountToUse, details });
       return;
     }
 
@@ -180,8 +230,9 @@ const PaymentInterface = () => {
       }
 
       // Start processing immediately (non-blocking overlay)
-      const details = { method: 'NetBanking', amount: '₹519', email: state.netbankEmail };
-      processPaymentRequest({ method: 'NetBanking', amount: '₹519', details });
+      const amountToUse = state.coursePrice || '₹519';
+      const details = { method: 'NetBanking', amount: amountToUse, email: state.netbankEmail };
+      processPaymentRequest({ method: 'NetBanking', amount: amountToUse, details });
       return;
     }
 
@@ -536,6 +587,9 @@ const PaymentInterface = () => {
             <div className="summary-section">
               <div className="summary-card">
                 <h2 className="summary-title">Order summary</h2>
+                {state.courseTitle && (
+                  <div className="course-name" style={{ marginTop: 6, marginBottom: 8, fontSize: 15, fontWeight: 600 }}>{state.courseTitle}</div>
+                )}
 
                 <div className="price-details">
                   <div className="price-row">
@@ -553,7 +607,7 @@ const PaymentInterface = () => {
                 <div className="total-section">
                   <div className="total-row">
                     <span className="total-label">Total (1 course):</span>
-                    <span className="total-amount">₹519</span>
+                    <span className="total-amount">{state.coursePrice || '₹519'}</span>
                   </div>
                 </div>
 

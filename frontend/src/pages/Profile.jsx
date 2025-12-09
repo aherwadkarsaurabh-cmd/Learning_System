@@ -51,6 +51,8 @@ export default function Profile() {
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
   const [userRole, setUserRole] = useState('student'); // Default to student
 
+  
+
   // Check if user is a student (show all sections) or other role (hide certain sections)
   const isStudent = userRole === 'student';
 
@@ -199,8 +201,24 @@ export default function Profile() {
   };
 
   const handleChange = (e) => {
-    setProfile({ ...profile, [e.target.name]: e.target.value });
-  };
+  const { name, value } = e.target;
+
+  // PHONE VALIDATION
+  if (name === "phone") {
+    // remove all non-digits
+    const digitsOnly = value.replace(/\D/g, "");
+
+    // limit to 10 digits
+    if (digitsOnly.length > 10) return;
+
+    setProfile({ ...profile, phone: digitsOnly });
+    return;
+  }
+
+  // NORMAL FIELDS
+  setProfile({ ...profile, [name]: value });
+};
+
 
   const handlePhotoChange = async (e) => {
     const file = e.target.files[0];
@@ -238,28 +256,44 @@ export default function Profile() {
   };
 
   const handleSubmit = (e) => {
-    e.preventDefault();
-    (async () => {
-      try {
-        const api = await import('../api');
-        const payload = {
-          fullName: profile.name,
-          phone: profile.phone,
-          location: profile.location,
-          bio: profile.bio,
-        };
-        const updated = await api.updateProfile(payload);
-        if (updated && updated._id) {
-          setProfile((prev) => ({ ...prev, name: updated.fullName || prev.name, phone: updated.phone ?? prev.phone, avatar: updated.avatar ?? prev.avatar }));
-          alert('✅ Profile updated successfully!');
-        }
-      } catch (err) {
-        alert(err?.message || 'Failed to update profile');
-      } finally {
-        setIsEditing(false);
+  e.preventDefault();
+
+  // ---------------- PHONE VALIDATION ----------------
+  if (!/^\d{10}$/.test(profile.phone)) {
+    alert("Phone number must be exactly 10 digits and contain only numbers.");
+    return;
+  }
+  // ---------------------------------------------------
+
+  (async () => {
+    try {
+      const api = await import('../api');
+      const payload = {
+        fullName: profile.name,
+        phone: profile.phone,
+        location: profile.location,
+        bio: profile.bio,
+      };
+
+      const updated = await api.updateProfile(payload);
+
+      if (updated && updated._id) {
+        setProfile((prev) => ({
+          ...prev,
+          name: updated.fullName || prev.name,
+          phone: updated.phone ?? prev.phone,
+          avatar: updated.avatar ?? prev.avatar,
+        }));
+        alert('✅ Profile updated successfully!');
       }
-    })();
-  };
+    } catch (err) {
+      alert(err?.message || 'Failed to update profile');
+    } finally {
+      setIsEditing(false);
+    }
+  })();
+};
+
 
   // prevent background scrolling when modal is open
   useEffect(() => {
@@ -500,76 +534,97 @@ export default function Profile() {
             <div className="modal-content">
               <h2>Edit Profile</h2>
               <form className="edit-form" onSubmit={handleSubmit}>
-                <div style={{ marginBottom: '1rem' }}>
-                  <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '500' }}>
-                    Profile Photo
-                  </label>
-                  <input
-                    type="file"
-                    accept="image/*"
-                    onChange={handlePhotoChange}
-                    disabled={uploadingPhoto}
-                    style={{ width: '100%', padding: '0.5rem' }}
-                  />
-                  {uploadingPhoto && <p style={{ marginTop: '0.5rem', color: '#666' }}>Uploading...</p>}
-                  {profile.avatar && (
-                    <div style={{ marginTop: '0.5rem' }}>
-                      <img 
-                        src={profile.avatar} 
-                        alt="Preview" 
-                        style={{ width: '80px', height: '80px', borderRadius: '50%', objectFit: 'cover' }}
-                      />
-                    </div>
-                  )}
-                </div>
-                <input
-                  type="text"
-                  name="name"
-                  value={profile.name}
-                  onChange={handleChange}
-                  placeholder="Name"
-                />
-                <input
-                  type="email"
-                  name="email"
-                  value={profile.email}
-                  onChange={handleChange}
-                  placeholder="Email"
-                />
-                <input
-                  type="text"
-                  name="phone"
-                  value={profile.phone}
-                  onChange={handleChange}
-                  placeholder="Phone"
-                />
-                <input
-                  type="text"
-                  name="location"
-                  value={profile.location}
-                  onChange={handleChange}
-                  placeholder="Location"
-                />
-                <textarea
-                  name="bio"
-                  value={profile.bio}
-                  onChange={handleChange}
-                  placeholder="Bio"
-                  rows={3}
-                />
-                <div className="form-buttons">
-                  <button type="submit" className="btn-save">
-                    Save Changes
-                  </button>
-                  <button
-                    type="button"
-                    className="btn-cancel"
-                    onClick={() => setIsEditing(false)}
-                  >
-                    Cancel
-                  </button>
-                </div>
-              </form>
+      {/* Profile Photo */}
+      <div style={{ marginBottom: "1rem" }}>
+        <label style={{ display: "block", marginBottom: "0.5rem", fontWeight: "500" }}>
+          Profile Photo
+        </label>
+
+        <input
+          type="file"
+          accept="image/*"
+          onChange={handlePhotoChange}
+          disabled={uploadingPhoto}
+          style={{ width: "100%", padding: "0.5rem" }}
+        />
+
+        {uploadingPhoto && (
+          <p style={{ marginTop: "0.5rem", color: "#666" }}>Uploading...</p>
+        )}
+
+        {profile.avatar && (
+          <div style={{ marginTop: "0.5rem" }}>
+            <img
+              src={profile.avatar}
+              alt="Preview"
+              style={{
+                width: "80px",
+                height: "80px",
+                borderRadius: "50%",
+                objectFit: "cover",
+              }}
+            />
+          </div>
+        )}
+      </div>
+
+      {/* Inputs */}
+      <input
+        type="text"
+        name="name"
+        value={profile.name}
+        onChange={handleChange}
+        placeholder="Name"
+      />
+
+      <input
+        type="email"
+        name="email"
+        value={profile.email}
+        onChange={handleChange}
+        placeholder="Email"
+      />
+
+      <input
+        type="text"
+        name="phone"
+        value={profile.phone}
+        onChange={handleChange}
+        placeholder="Phone"
+        inputMode="numeric"
+      />
+
+      <input
+        type="text"
+        name="location"
+        value={profile.location}
+        onChange={handleChange}
+        placeholder="Location"
+      />
+
+      <textarea
+        name="bio"
+        value={profile.bio}
+        onChange={handleChange}
+        placeholder="Bio"
+        rows={3}
+      />
+
+      {/* Buttons */}
+      <div className="form-buttons">
+        <button type="submit" className="btn-save">
+          Save Changes
+        </button>
+
+        <button
+          type="button"
+          className="btn-cancel"
+          onClick={() => setIsEditing(false)}
+        >
+          Cancel
+        </button>
+      </div>
+    </form>
             </div>
           </div>
         )}

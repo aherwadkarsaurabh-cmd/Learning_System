@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import axiosClient from '../api/axiosClient';
 
 const CreateCourseModal = ({ isOpen, onClose, onSuccess }) => {
-  const [formData, setFormData] = useState({ title: '', description: '', category: '', level: 'Beginner', durationHours: 0, status: 'active' });
+  const [formData, setFormData] = useState({ title: '', description: '', category: '', level: 'Beginner', price: 0, duration: '', status: 'active' });
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -12,8 +12,8 @@ const CreateCourseModal = ({ isOpen, onClose, onSuccess }) => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     try {
-      await axiosClient.post('/api/admin/courses', formData);
-      setFormData({ title: '', description: '', category: '', level: 'Beginner', durationHours: 0, status: 'active' });
+      await axiosClient.post('/api/courses', formData);
+      setFormData({ title: '', description: '', category: '', level: 'Beginner', price: 0, duration: '', status: 'active' });
       onSuccess();
       onClose();
     } catch (err) {
@@ -33,12 +33,8 @@ const CreateCourseModal = ({ isOpen, onClose, onSuccess }) => {
         <option value="Intermediate">Intermediate</option>
         <option value="Advanced">Advanced</option>
       </select>
-      <input type="number" name="durationHours" placeholder="Duration (hours)" value={formData.durationHours} onChange={handleChange} className="form-control" />
-      <select name="status" value={formData.status} onChange={handleChange} className="form-control">
-        <option value="draft">Draft</option>
-        <option value="active">Active</option>
-        <option value="archived">Archived</option>
-      </select>
+      <input type="number" name="price" placeholder="Price (in ₹)" value={formData.price} onChange={handleChange} className="form-control" min="0" />
+      <input type="text" name="duration" placeholder="Duration (e.g., 4 weeks)" value={formData.duration} onChange={handleChange} className="form-control" />
       <button type="submit" className="btn btn-primary" style={{ gridColumn: '1 / -1' }}>Create Course</button>
     </form>
   );

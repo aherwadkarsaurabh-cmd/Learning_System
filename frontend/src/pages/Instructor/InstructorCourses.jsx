@@ -10,6 +10,8 @@ const InstructorCourses = () => {
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [editingCourse, setEditingCourse] = useState(null);
+  const [lastCreatedCourse, setLastCreatedCourse] = useState(null);
+  const [deletingIds, setDeletingIds] = useState(new Set());
   const [formData, setFormData] = useState({
     title: '',
     description: '',
@@ -20,6 +22,7 @@ const InstructorCourses = () => {
     thumbnail: ''
   });
   const navigate = useNavigate();
+  const userRole = localStorage.getItem('userRole') || 'student';
 
   useEffect(() => {
     loadCourses();
@@ -47,7 +50,10 @@ const InstructorCourses = () => {
       if (editingCourse) {
         await axiosClient.put(`/api/instructor/courses/${editingCourse._id}`, formData);
       } else {
-        await axiosClient.post('/api/instructor/courses', formData);
+        const res = await axiosClient.post('/api/instructor/courses', formData);
+        // capture created course so we can show immediate delete option
+        const created = res?.data?.data || null;
+        setLastCreatedCourse(created);
       }
       setFormData({
         title: '',
@@ -81,13 +87,22 @@ const InstructorCourses = () => {
   };
 
   const handleDelete = async (courseId) => {
-    if (window.confirm('Are you sure you want to delete this course?')) {
-      try {
-        await axiosClient.delete(`/api/instructor/courses/${courseId}`);
-        loadCourses();
-      } catch (error) {
-        alert('Error deleting course: ' + (error.response?.data?.message || error.message));
-      }
+    try {
+      setDeletingIds(prev => new Set(prev).add(courseId));
+      const res = await axiosClient.delete(`/api/instructor/courses/${courseId}`);
+      // Success: refresh list and clear lastCreatedCourse if it was deleted
+      loadCourses();
+      if (lastCreatedCourse && lastCreatedCourse._id === courseId) setLastCreatedCourse(null);
+      alert(res?.data?.message || 'Course deleted');
+    } catch (error) {
+      console.error('Delete error', error.response?.data || error.message || error);
+      alert('Error deleting course: ' + (error.response?.data?.message || error.message));
+    } finally {
+      setDeletingIds(prev => {
+        const s = new Set(prev);
+        s.delete(courseId);
+        return s;
+      });
     }
   };
 
@@ -222,10 +237,13 @@ const InstructorCourses = () => {
                   <th style={{ textAlign: 'left', padding: '12px' }}>Category</th>
                   <th style={{ textAlign: 'left', padding: '12px' }}>Level</th>
                   <th style={{ textAlign: 'left', padding: '12px' }}>Price</th>
+                  <th style={{ textAlign: 'left', padding: '12px' }}>Duration</th>
                   <th style={{ textAlign: 'left', padding: '12px' }}>Students</th>
                   <th style={{ textAlign: 'left', padding: '12px' }}>Lessons</th>
                   <th style={{ textAlign: 'left', padding: '12px' }}>Status</th>
-                  <th style={{ textAlign: 'center', padding: '12px' }}>Actions</th>
+                  {(userRole === 'admin' || userRole === 'instructor') && (
+                    <th style={{ textAlign: 'center', padding: '12px' }}>Actions</th>
+                  )}
                 </tr>
               </thead>
               <tbody>
@@ -235,6 +253,15 @@ const InstructorCourses = () => {
                     <td style={{ padding: '12px' }}>{course.category}</td>
                     <td style={{ padding: '12px' }}>{course.level}</td>
                     <td style={{ padding: '12px' }}>₹{course.price}</td>
+                    <td style={{ padding: '12px' }}>
+                      {course.duration}
+                      {(userRole === 'admin' || userRole === 'instructor') && (
+                        <button
+                          onClick={() => handleDelete(course._id)}
+                          style={{ marginLeft: 10, padding: '6px 10px', background: '#dc3545', color: 'white', border: 'none', borderRadius: 4, cursor: 'pointer' }}
+                        >Delete</button>
+                      )}
+                    </td>
                     <td style={{ padding: '12px' }}>{course.enrolledStudents?.length || 0}</td>
                     <td style={{ padding: '12px' }}>{course.lessons?.length || 0}</td>
                     <td style={{ padding: '12px' }}>
@@ -249,30 +276,53 @@ const InstructorCourses = () => {
                         {course.isPublished ? 'Published' : 'Draft'}
                       </span>
                     </td>
-                    <td style={{ padding: '12px', textAlign: 'center' }}>
-                      <button 
-                        onClick={() => handleEdit(course)}
-                        style={{ padding: '6px 10px', marginRight: '5px', background: '#2b6cb0', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}
-                      >
-                        Edit
-                      </button>
-                      <button 
-                        onClick={() => handleManageLessons(course._id)}
-                        style={{ padding: '6px 10px', marginRight: '5px', background: '#17a2b8', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}
-                      >
-                        Lessons
-                      </button>
-                      <button 
-                        onClick={() => handleDelete(course._id)}
-                        style={{ padding: '6px 10px', background: '#dc3545', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}
-                      >
-                        Delete
-                      </button>
-                    </td>
+                    {(userRole === 'admin' || userRole === 'instructor') && (
+                      <td style={{ padding: '12px', textAlign: 'center' }}>
+                        <div style={{ display: 'flex', justifyContent: 'center', gap: '6px', flexWrap: 'wrap' }}>
+                          <button 
+                            onClick={() => handleEdit(course)}
+                            style={{ padding: '8px 12px', marginRight: '0', background: '#2b6cb0', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}
+                          >
+                            Edit
+                          </button>
+                          <button 
+                            onClick={() => handleManageLessons(course._id)}
+                            style={{ padding: '8px 12px', marginRight: '0', background: '#17a2b8', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}
+                          >
+                            Lessons
+                          </button>
+                          <button 
+                            onClick={() => handleDelete(course._id)}
+                            style={{ padding: '8px 12px', background: '#dc3545', color: 'white', border: 'none', borderRadius: '4px', cursor: deletingIds.has(course._id) ? 'not-allowed' : 'pointer', opacity: deletingIds.has(course._id) ? 0.6 : 1 }}
+                            disabled={deletingIds.has(course._id)}
+                          >
+                            {deletingIds.has(course._id) ? 'Deleting…' : 'Delete'}
+                          </button>
+                        </div>
+                      </td>
+                    )}
                   </tr>
                 ))}
               </tbody>
             </table>
+          </div>
+        )}
+        {/* Recently created course quick-actions */}
+        {lastCreatedCourse && (
+          <div style={{ marginTop: '20px', padding: '16px', background: '#f8f9fa', borderRadius: '8px' }}>
+            <strong>Created:</strong> {lastCreatedCourse.title}
+            { (userRole === 'admin' || userRole === 'instructor') && (
+              <button
+                onClick={() => { handleDelete(lastCreatedCourse._id); setLastCreatedCourse(null); }}
+                style={{ marginLeft: '12px', padding: '6px 10px', background: '#dc3545', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}
+              >
+                Delete
+              </button>
+            )}
+            <button
+              onClick={() => setLastCreatedCourse(null)}
+              style={{ marginLeft: '8px', padding: '6px 10px', background: '#6c757d', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}
+            >Dismiss</button>
           </div>
         )}
       </div>

@@ -7,6 +7,27 @@ const AdminCourses = () => {
   const [courses, setCourses] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
+  const userRole = localStorage.getItem('userRole') || 'student';
+  const [deletingIds, setDeletingIds] = useState(new Set());
+
+  const handleDelete = async (courseId) => {
+    try {
+      setDeletingIds(prev => new Set(prev).add(courseId));
+      const res = await axiosClient.delete(`/api/courses/${courseId}`);
+      await loadCourses();
+      alert(res?.data?.message || 'Course deleted');
+    } catch (err) {
+      console.error('Failed to delete course', err);
+      alert('Failed to delete course: ' + (err.response?.data?.message || err.message));
+    }
+    finally {
+      setDeletingIds(prev => {
+        const s = new Set(prev);
+        s.delete(courseId);
+        return s;
+      });
+    }
+  };
 
   const loadCourses = async () => {
     try {
@@ -85,7 +106,17 @@ const AdminCourses = () => {
               <td>{c.category}</td>
               <td>{c.level}</td>
               <td>{c.status}</td>
-              <td>{c.durationHours}</td>
+              <td>
+                {c.durationHours}
+                {(userRole === 'admin' || userRole === 'instructor') && (
+                  <button
+                    onClick={() => handleDelete(c._id)}
+                    style={{ marginLeft: 12, padding: '6px 10px', background: '#dc3545', color: 'white', border: 'none', borderRadius: 4, cursor: deletingIds.has(c._id) ? 'not-allowed' : 'pointer', opacity: deletingIds.has(c._id) ? 0.6 : 1 }}
+                    disabled={deletingIds.has(c._id)}
+                    title="Delete course"
+                  >{deletingIds.has(c._id) ? 'Deleting…' : 'Delete'}</button>
+                )}
+              </td>
             </tr>
           ))}
         </tbody>
